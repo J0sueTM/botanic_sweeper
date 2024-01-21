@@ -11,7 +11,7 @@
 #define BLOCK_W 4.f
 
 typedef enum BlockType {
-  NORMAL, FLOWER, ROTTEN
+  DIRT, FLOWER, ROTTEN
 } BlockType;
 
 typedef struct Block {
@@ -30,7 +30,9 @@ typedef enum Difficulty {
 size_t get_grid_size(Difficulty diff);
 Vector2 get_block_size(BlockType type);
 float get_rotten_pct(Difficulty diff);
+float get_block_y_diff(Difficulty diff);
 Block *populate_blocks(size_t side, Difficulty diff);
+Color get_block_color(BlockType type);
 
 int main(void) {
   InitWindow(WIN_W, WIN_H, "Botanic Sweeper");
@@ -69,8 +71,14 @@ int main(void) {
   while (!WindowShouldClose()) {
     for (size_t i = 0; i < (grid_side * grid_side); ++i) {
       Block *b = (blocks + i);
-      b->color = BEIGE;
-      b->size = get_block_size(b->type);
+      b->pos.y = get_block_y_diff(diff) + (b->size.y * 0.5f);
+      if (b->is_open) {
+        b->color = get_block_color(b->type);
+        b->size = get_block_size(b->type);
+      } else {
+        b->color = BEIGE;
+        b->size.y = 2.f;
+      }
     }
 
     mouse_ray = GetMouseRay(GetMousePosition(), camera);
@@ -170,7 +178,7 @@ Vector2 get_block_size(BlockType type) {
     height = 3.f;
 
     break;
-  case NORMAL:
+  case DIRT:
   default:
     height = 2.f;
     break;
@@ -203,20 +211,7 @@ float get_rotten_pct(Difficulty diff) {
   return pct;
 }
 
-Block *populate_blocks(size_t side, Difficulty diff) {
-  size_t group_size = (side * side);
-
-  Block *blocks = (Block *)malloc(group_size * sizeof(Block));
-  if (!blocks) {
-    printf("ERROR: failed to populate blocks\n");
-
-    exit(1);
-  }
-
-  size_t rotten_qtt = 0;
-  float rotten_pct = get_rotten_pct(diff);
-  size_t max_rotten_qtt = (size_t)(group_size * rotten_pct);
-
+float get_block_y_diff(Difficulty diff) {
   float block_y_diff;
   switch (diff) {
   case MEDIUM:
@@ -233,14 +228,29 @@ Block *populate_blocks(size_t side, Difficulty diff) {
 
     break;
   }
+
+  return block_y_diff;
+}
+
+Block *populate_blocks(size_t side, Difficulty diff) {
+  size_t group_size = (side * side);
+
+  Block *blocks = (Block *)malloc(group_size * sizeof(Block));
+  if (!blocks) {
+    printf("ERROR: failed to populate blocks\n");
+
+    exit(1);
+  }
+
+  float block_y_diff = get_block_y_diff(diff);
   
   size_t cur_id = 0;
   for (size_t i = 0; i < side; ++i) {
     for (size_t j = 0; j < side; ++j) {
       Block *cur_block = (blocks + cur_id);
 
-      cur_block->type = NORMAL;
-      cur_block->size = get_block_size(cur_block->type);
+      cur_block->type = DIRT;
+      cur_block->size = get_block_size(DIRT);
 
       cur_block->pos = (Vector3){
         .x = (side * 0.5f) - i * BLOCK_W,
@@ -249,12 +259,59 @@ Block *populate_blocks(size_t side, Difficulty diff) {
       };
       cur_block->is_open = false;
 
-      printf("cur_block = %p\n", (void *)cur_block);
-      printf("  pos = %.2fx%.2f\n", cur_block->pos.x, cur_block->pos.y);
-
       ++cur_id;
     }
   }
 
+  float rotten_pct = get_rotten_pct(diff);
+  size_t rotten_qtt = (size_t)(group_size * rotten_pct);
+
+// not of the total, but of the remainder from the rotten
+#define FLOWER_PCT 0.6f
+  size_t healthy_qtt = group_size - rotten_qtt;
+  size_t flower_qtt = healthy_qtt * FLOWER_PCT;
+
+  for (size_t i = 0; i < rotten_qtt; ++i) {
+    Block *rand_block = (blocks + GetRandomValue(0, group_size - 1));
+    if (rand_block->type == ROTTEN) {
+      --i;
+      continue;
+    }
+
+    rand_block->type = ROTTEN;
+  }
+
+  for (size_t i = 0; i < flower_qtt; ++i) {
+    Block *rand_block = (blocks + GetRandomValue(0, group_size - 1));
+    if (rand_block->type != DIRT) {
+      --i;
+      continue;
+    }
+
+    rand_block->type = FLOWER;
+  }
+
   return blocks;
+}
+
+Color get_block_color(BlockType type) {
+  Color color;
+
+  switch (type) {
+  case FLOWER:
+    color = GREEN;
+
+    break;
+  case ROTTEN:
+    color = BLACK;
+
+    break;
+  case DIRT:
+  default:
+    color = BEIGE;
+
+    break;
+  }
+
+  return color;
 }
