@@ -10,6 +10,10 @@
 
 #define BLOCK_W 4.f
 
+typedef enum Page {
+  MENU, PLAYING, WIN, LOSE
+} Page;
+
 typedef enum BlockType {
   DIRT, FLOWER, ROTTEN
 } BlockType;
@@ -44,6 +48,8 @@ int main(void) {
     .projection = CAMERA_ORTHOGRAPHIC,
   };
 
+  Page cur_page = MENU;
+
   Difficulty diff = EASY;
   const size_t grid_side = get_grid_size(diff);
   Block *blocks = populate_blocks(grid_side, diff);
@@ -69,72 +75,94 @@ int main(void) {
 
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
-    for (size_t i = 0; i < (grid_side * grid_side); ++i) {
-      Block *b = (blocks + i);
-      b->pos.y = get_block_y_diff(diff) + (b->size.y * 0.5f);
-      if (b->is_open) {
-        b->color = get_block_color(b->type);
-        b->size = get_block_size(b->type);
-      } else {
-        b->color = BEIGE;
-        b->size.y = 2.f;
+    if (cur_page == MENU) {
+      if (IsKeyDown(KEY_SPACE)) {
+        cur_page = PLAYING;
       }
-    }
+    } else {
+      for (size_t i = 0; i < (grid_side * grid_side); ++i) {
+        Block *b = (blocks + i);
+        b->pos.y = get_block_y_diff(diff) + (b->size.y * 0.5f);
+        if (b->is_open) {
+          b->color = get_block_color(b->type);
+          b->size = get_block_size(b->type);
+        } else {
+          b->color = BEIGE;
+          b->size.y = 2.f;
+        }
+      }
 
-    mouse_ray = GetMouseRay(GetMousePosition(), camera);
-    for (size_t i = 0; i < (grid_side * grid_side); ++i) {
-      Block *b = (blocks + i);
-      mouse_coll = GetRayCollisionBox(
-        mouse_ray,
-        (BoundingBox){
-          (Vector3){
-            .x = b->pos.x - b->size.x * 0.5f,
-            .y = b->pos.y - b->size.y * 0.5f,
-            .z = b->pos.z - b->size.x * 0.5f
-          },
-          (Vector3){
-            .x = b->pos.x + b->size.x * 0.5f,
-            .y = b->pos.y + b->size.y * 0.5f,
-            .z = b->pos.z + b->size.x * 0.5f
+      mouse_ray = GetMouseRay(GetMousePosition(), camera);
+      for (size_t i = 0; i < (grid_side * grid_side); ++i) {
+        Block *b = (blocks + i);
+        mouse_coll = GetRayCollisionBox(
+          mouse_ray,
+          (BoundingBox){
+            (Vector3){
+              .x = b->pos.x - b->size.x * 0.5f,
+              .y = b->pos.y - b->size.y * 0.5f,
+              .z = b->pos.z - b->size.x * 0.5f
+            },
+            (Vector3){
+              .x = b->pos.x + b->size.x * 0.5f,
+              .y = b->pos.y + b->size.y * 0.5f,
+              .z = b->pos.z + b->size.x * 0.5f
+            }
           }
+          );
+
+        if (mouse_coll.hit) {
+          b->color = Fade(WHITE, 0.2);
+
+          if (!b->is_open) {
+            b->size.y += 1.f;
+          }
+
+          if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            b->is_open = true;
+          }
+
+          break;
         }
-      );
-
-      if (mouse_coll.hit) {
-        b->color = Fade(WHITE, 0.2);
-
-        if (!b->is_open) {
-          b->size.y += 1.f;
-        }
-
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-          b->is_open = true;
-        }
-
-        break;
       }
     }
 
     BeginDrawing(); {
       ClearBackground(GRAY);
 
-      BeginMode3D(camera); {
-        size_t cur_id = 0;
-        for (size_t i = 0; i < grid_side; ++i) {
-          for (size_t j = 0; j < grid_side; ++j) {
-            Block *cur_block = (blocks + cur_id);
-            DrawCube(
-              cur_block->pos,
-              cur_block->size.x, cur_block->size.y, cur_block->size.x,
-              cur_block->color
-            );
+      switch (cur_page) {
+      case LOSE:
+        // TODO
+        break;
+      case WIN:
+        // TODO
+        break;
+      case PLAYING:
+        BeginMode3D(camera); {
+          size_t cur_id = 0;
+          for (size_t i = 0; i < grid_side; ++i) {
+            for (size_t j = 0; j < grid_side; ++j) {
+              Block *cur_block = (blocks + cur_id);
+              DrawCube(
+                cur_block->pos,
+                cur_block->size.x, cur_block->size.y, cur_block->size.x,
+                cur_block->color
+                );
 
-            ++cur_id;
+              ++cur_id;
+            }
           }
         }
+        EndMode3D();
+
+        break;
+      case MENU:
+      default:
+        DrawText("Botanic Sweeper", 40, WIN_H * 0.2f, 40, GREEN);
+        DrawText("Press space...", 40, WIN_H * 0.3f, 20, GREEN);
+        
+        break;
       }
-       
-      EndMode3D();
     }
 
     EndDrawing();
@@ -308,7 +336,7 @@ Color get_block_color(BlockType type) {
     break;
   case DIRT:
   default:
-    color = BEIGE;
+    color = DARKGRAY;
 
     break;
   }
